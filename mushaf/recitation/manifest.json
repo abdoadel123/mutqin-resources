@@ -1,11 +1,15 @@
 {
-  "model": "w2v-int8",
-  "arch": "wav2vec2-large-xlsr-53-arabic-quran-v2",
-  "file": "w2v-int8.onnx",
-  "parts": 4,
-  "partPrefix": "w2v-int8.part",
+  "model": "fastconformer-quran-q8",
+  "arch": "FastConformer-Large hybrid (NVIDIA), 114M, INT8",
+  "file": "fc-q8.onnx",
+  "parts": 2,
+  "partPrefix": "fc-q8.part",
   "partSuffix": ".bin",
-  "size": 355031557,
-  "sha1": "8e640dd54d60907cf29e4b77fb7b4e41b66aaf21",
+  "size": 131801467,
+  "sha1": "160ff058312fbd0468e87ec24051fea0005f965c",
+  "inputs": { "audio_signal": "float32 [1,80,T] log-mel", "length": "int64 [1]" },
+  "outputs": { "logprobs": "[1,T,1025] blank=1024", "encoder_output": "[1,512,T]" },
+  "mel": { "sampleRate": 16000, "features": 80, "nFft": 512, "winLength": 400, "hopLength": 160, "preemph": 0.97, "logGuard": 5.96e-8, "normalize": "per_feature" },
+  "tokenizer": "tokenizer.model (SentencePiece 1024 BPE)",
   "version": "v1"
 }
