@@ -1,0 +1,11 @@
+{
+  "model": "w2v-int8",
+  "arch": "wav2vec2-large-xlsr-53-arabic-quran-v2",
+  "file": "w2v-int8.onnx",
+  "parts": 4,
+  "partPrefix": "w2v-int8.part",
+  "partSuffix": ".bin",
+  "size": 355031557,
+  "sha1": "8e640dd54d60907cf29e4b77fb7b4e41b66aaf21",
+  "version": "v1"
+}
