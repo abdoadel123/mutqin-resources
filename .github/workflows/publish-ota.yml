@@ -1,0 +1,78 @@
+# نشرُ حزمةِ الويب الصامتة (OTA) من هذا المستودع العام — بلا استهلاكِ دقائق.
+#
+# The app checks this repo's `apk-latest` release: it reads the version from the APK asset's NAME,
+# and when the release body's nativeRev matches its own, it downloads the web zip and swaps the UI
+# in silently — no APK install. So a web-only change needs no Android build at all.
+#
+# Actions minutes are free without limit in PUBLIC repositories, which is why publishing lives here
+# rather than in the private app repo whose monthly quota can run out.
+name: Publish OTA web bundle
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'App version to publish (e.g. 1.2.162)'
+        required: true
+      native_rev:
+        description: 'nativeRev fingerprint of the APK this bundle runs on'
+        required: true
+      carry_apk_from:
+        description: 'Version of the published APK to carry forward (native code unchanged)'
+        required: true
+
+permissions:
+  contents: write # to update the apk-latest release in this repo
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The upload key is never committed: the bundle ships with a placeholder and the real key —
+      # a secret of THIS repo — is substituted here. A bundle without it uploads with no header,
+      # the Worker answers 403, and the app goes quiet: no error shown and no data arriving.
+      - name: Inject the upload key into the bundle
+        env:
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          V='${{ github.event.inputs.version }}'
+          unzip -q "ota/mutqin-web-v$V.zip" -d bundle
+          if [ -z "$SYNC_TOKEN" ]; then
+            echo "::warning::سرُّ SYNC_TOKEN غيرُ مضبوطٍ هنا — ستُنشَر الحزمةُ بلا مفتاحِ رفع، فلا تصل الجلسات."
+          else
+            grep -rl '__MUTQIN_SYNC_TOKEN__' bundle | xargs -r sed -i "s|__MUTQIN_SYNC_TOKEN__|$SYNC_TOKEN|g"
+            grep -rq "$SYNC_TOKEN" bundle && echo "upload key embedded: ok"
+          fi
+          # Leaving the placeholder in a published bundle would send it as the key — blank it out.
+          grep -rl '__MUTQIN_SYNC_TOKEN__' bundle | xargs -r sed -i 's|__MUTQIN_SYNC_TOKEN__||g' || true
+          (cd bundle && zip -qr "../mutqin-web-v$V.zip" .)
+
+      # The APK's native half is unchanged (same nativeRev), so the published binary is carried
+      # forward under the new version name: the app takes the web path and never downloads it, and
+      # a device that does fall back to installing gets exactly the same native app it already runs.
+      - name: Carry the APK forward under the new version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V='${{ github.event.inputs.version }}'
+          FROM='${{ github.event.inputs.carry_apk_from }}'
+          gh release download apk-latest -R "$GITHUB_REPOSITORY" -p "mutqin-v$FROM.apk" -O "mutqin-v$V.apk"
+          ls -la "mutqin-v$V.apk"
+
+      - name: Publish to the apk-latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V='${{ github.event.inputs.version }}'
+          REV='${{ github.event.inputs.native_rev }}'
+          # Old assets are removed first: the app picks the APK asset by name, so two versions would race.
+          for A in $(gh release view apk-latest -R "$GITHUB_REPOSITORY" --json assets -q '.assets[].name'); do
+            gh release delete-asset apk-latest "$A" -R "$GITHUB_REPOSITORY" -y || true
+          done
+          gh release upload apk-latest "mutqin-v$V.apk" "mutqin-web-v$V.zip" -R "$GITHUB_REPOSITORY" --clobber
+          printf 'أحدث نسخة (الإصدار %s).\nالتطبيق المثبَّت يلتقط تحديثات الواجهة صامتةً من حزمة الويب،\nولا يطلب تثبيت APK إلا عند تغيّر الكود الأصلي.\n\nnativeRev: %s\n' "$V" "$REV" > notes.md
+          gh release edit apk-latest -R "$GITHUB_REPOSITORY" \
+            --title "مُتقِن v$V — أحدث APK" --notes-file notes.md --latest
+          gh release view apk-latest -R "$GITHUB_REPOSITORY" --json name,assets -q '.name, (.assets[].name)'
