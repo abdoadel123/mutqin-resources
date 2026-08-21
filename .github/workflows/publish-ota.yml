@@ -42,7 +42,17 @@ jobs:
           SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |
           V="$version"
-          unzip -q "ota/mutqin-web-v$V.zip" -d bundle
+          mkdir -p bundle
+          # Either archive form is accepted: the release asset is zipped further down from
+          # `bundle/` regardless, so the transport into this repo need not be the zip itself.
+          if [ -f "ota/mutqin-web-v$V.zip" ]; then
+            unzip -q "ota/mutqin-web-v$V.zip" -d bundle
+          elif [ -f "ota/mutqin-web-v$V.tar.gz" ]; then
+            tar -xzf "ota/mutqin-web-v$V.tar.gz" -C bundle
+          else
+            echo "::error::لا توجد حزمةٌ للنسخة $V في ota/ (لا .zip ولا .tar.gz)"
+            exit 1
+          fi
           if [ -z "$SYNC_TOKEN" ]; then
             echo "::warning::سرُّ SYNC_TOKEN غيرُ مضبوطٍ هنا — ستُنشَر الحزمةُ بلا مفتاحِ رفع، فلا تصل الجلسات."
           else
