@@ -26,12 +26,17 @@ model.set_export_config({'cache_support': 'True'})
 model.export('fc-stream.onnx')
 print('ONNX:', round(os.path.getsize('fc-stream.onnx') / 1e6, 1), 'MB')
 
-# Geometry for the phase-1 adapter, read from the model itself.
+# Geometry for the phase-1 adapter, read from the model itself. A multi-latency model
+# (phase-2's own shape, and NVIDIA's public checkpoint) carries att_context_size as a LIST
+# OF PAIRS — the first pair is the runtime default; the whole set is recorded alongside.
 cache_channel, cache_time, cache_len = model.encoder.get_initial_cache_state(batch_size=1)
-att_context = list(encoder_cfg.att_context_size)
+raw_context = [list(entry) if not isinstance(entry, int) else entry for entry in encoder_cfg.att_context_size]
+multi = bool(raw_context) and not isinstance(raw_context[0], int)
+att_context = [int(v) for v in (raw_context[0] if multi else raw_context)]
 subsampling = int(encoder_cfg.subsampling_factor)
 meta = {
     'att_context_size': att_context,
+    'att_context_sizes_all': [[int(v) for v in pair] for pair in raw_context] if multi else None,
     # One encoder frame = subsampling x window_stride seconds (0.08s at 8 x 10ms).
     'encoder_frame_seconds': subsampling * float(model.cfg.preprocessor.window_stride),
     'chunk_encoder_frames': att_context[1] + 1,
