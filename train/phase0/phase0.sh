@@ -33,6 +33,11 @@ python -c 'import nemo.collections.asr' 2>/dev/null || pip install -q 'nemo_tool
 
 case "$MODE" in
   mechanics)
+    # CPU-only on purpose: export + parity never need a GPU, and a community host's broken
+    # CUDA init (measured 2026-08-30: torch saw the 4090, _cuda_init threw "CUDA unknown
+    # error", and NeMo's init cascaded into the abstract-ASRModel fallback) must not be able
+    # to fail the free half. convert keeps the GPU — it actually trains.
+    export CUDA_VISIBLE_DEVICES=
     # The public multi-latency streaming checkpoint — same architecture family, zero training.
     MODEL=$(python - <<'EOF'
 from huggingface_hub import hf_hub_download, list_repo_files
