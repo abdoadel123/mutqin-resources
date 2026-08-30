@@ -64,8 +64,11 @@ def onnx_one(path: str) -> str:
         mel, mel_len = model.preprocessor(
             input_signal=torch.tensor(audio)[None], length=torch.tensor([len(audio)]))
     cache_channel, cache_time, cache_len = model.encoder.get_initial_cache_state(batch_size=1)
+    # The export reorders the cache axes: get_initial_cache_state is layers-first, the ONNX
+    # graph is batch-first (measured on the pod: fed [17,1,...], graph wanted [1,17,...]).
     feeds = {'audio_signal': mel.numpy(), 'length': mel_len.numpy().astype(np.int64),
-             'cache_last_channel': cache_channel.numpy(), 'cache_last_time': cache_time.numpy(),
+             'cache_last_channel': cache_channel.numpy().swapaxes(0, 1),
+             'cache_last_time': cache_time.numpy().swapaxes(0, 1),
              'cache_last_channel_len': cache_len.numpy().astype(np.int64)}
     wanted = {i.name for i in session.get_inputs()}
     missing, extra = wanted - feeds.keys(), feeds.keys() - wanted
