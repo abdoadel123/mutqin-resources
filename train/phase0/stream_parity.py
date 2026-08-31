@@ -39,6 +39,16 @@ def wer(ref: str, hyp: str) -> float:
 
 
 def stream_one(path: str) -> str:
+    """NeMo's own cache-aware stream, one clip. A clip that throws is reported, not fatal:
+    the run's whole point is the comparison across the gate set, and losing the remaining
+    gates to one bad clip is how a $0.5 measurement answered two of six questions (31/08)."""
+    try:
+        return _stream_one(path)
+    except Exception as e:  # noqa: BLE001 — one clip must not cost the other five
+        return f'<stream-error: {type(e).__name__}: {e}>'
+
+
+def _stream_one(path: str) -> str:
     buffer = CacheAwareStreamingAudioBuffer(model=model)
     buffer.append_audio_file(path, stream_id=-1)
     cache_channel, cache_time, cache_len = model.encoder.get_initial_cache_state(batch_size=1)
